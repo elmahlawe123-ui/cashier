@@ -6,6 +6,7 @@ import {
   setDoc,
   deleteDoc,
   onSnapshot,
+  writeBatch,
   enableIndexedDbPersistence,
 } from 'firebase/firestore';
 import { db } from './db';
@@ -33,9 +34,10 @@ let isSyncingFromCloud = false;
 
 /**
  * 🔄 Start bi-directional real-time sync between Cloud Firestore and Local Dexie DB
+ * High-performance batch operations for 600+ products
  */
 export function initCloudSync() {
-  console.log('⚡ Initializing Real-time Cloud Sync with Firebase Firestore...');
+  console.log('⚡ Initializing High-Performance Cloud Sync with Firebase Firestore...');
 
   // 1. Listen to Firestore "products" collection
   onSnapshot(collection(cloudDb, 'products'), async (snapshot) => {
@@ -43,19 +45,16 @@ export function initCloudSync() {
     try {
       const cloudItems: Product[] = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Product));
       
-      // Update local Dexie DB with cloud products
-      for (const item of cloudItems) {
-        if (item.id && item.name) {
-          await db.products.put(item);
-        }
-      }
+      if (cloudItems.length > 0) {
+        // Fast bulkPut in local Dexie DB (1 atomic operation)
+        await db.products.bulkPut(cloudItems);
 
-      // Handle deletions from cloud
-      const cloudIds = new Set(cloudItems.map(item => item.id));
-      const localProducts = await db.products.toArray();
-      for (const localDoc of localProducts) {
-        if (!cloudIds.has(localDoc.id)) {
-          await db.products.delete(localDoc.id);
+        // Remove local items deleted from cloud
+        const cloudIds = new Set(cloudItems.map(item => item.id));
+        const localProducts = await db.products.toArray();
+        const toDelete = localProducts.filter(p => !cloudIds.has(p.id)).map(p => p.id);
+        if (toDelete.length > 0) {
+          await db.products.bulkDelete(toDelete);
         }
       }
     } catch (err) {
@@ -72,11 +71,8 @@ export function initCloudSync() {
     isSyncingFromCloud = true;
     try {
       const cloudTransactions: Transaction[] = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Transaction));
-
-      for (const tx of cloudTransactions) {
-        if (tx.id) {
-          await db.transactions.put(tx);
-        }
+      if (cloudTransactions.length > 0) {
+        await db.transactions.bulkPut(cloudTransactions);
       }
     } catch (err) {
       console.error('Error syncing transactions from cloud:', err);
@@ -89,7 +85,7 @@ export function initCloudSync() {
 }
 
 /**
- * 📤 Push a product to Cloud Firestore
+ * 📤 Push a single product to Cloud Firestore
  */
 export async function syncProductToCloud(product: Product) {
   try {
@@ -97,6 +93,23 @@ export async function syncProductToCloud(product: Product) {
     await setDoc(ref, product, { merge: true });
   } catch (err) {
     console.error('Failed to sync product to cloud:', err);
+  }
+}
+
+/**
+ * ⚡ Batch sync large list of products (600+ items) using Firestore writeBatch (500 items max per batch)
+ */
+export async function syncProductsBatchToCloud(products: Product[]) {
+  if (!products.length) return;
+  const BATCH_SIZE = 450;
+  for (let i = 0; i < products.length; i += BATCH_SIZE) {
+    const chunk = products.slice(i, i + BATCH_SIZE);
+    const batch = writeBatch(cloudDb);
+    for (const p of chunk) {
+      const ref = doc(cloudDb, 'products', p.id);
+      batch.set(ref, p, { merge: true });
+    }
+    await batch.commit();
   }
 }
 

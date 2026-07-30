@@ -115,14 +115,18 @@ export const InvoicesPage: React.FC = () => {
   };
 
 
-  const filteredProducts     = products.filter(p => {
+  const filteredProducts = products.filter(p => {
     const q = productSearch.toLowerCase();
     return !q || p.name.toLowerCase().includes(q) || (p.barcode && p.barcode.includes(q)) || (p.brand && p.brand.toLowerCase().includes(q));
   });
+
+  const pickerProducts = filteredProducts.slice(0, 50);
+
   const filteredTransactions = transactions.filter(t =>
     String(t.invoiceNumber).includes(invoiceSearch) ||
     (t.customerName && t.customerName.toLowerCase().includes(invoiceSearch.toLowerCase()))
   );
+
 
   /* ── Render ───────────────────────────────── */
   return (
@@ -291,11 +295,12 @@ export const InvoicesPage: React.FC = () => {
             </div>
 
             <div style={{ flex: 1, overflowY: 'auto', padding: '0.6rem', display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '430px' }}>
-              {filteredProducts.length === 0 ? (
+              {pickerProducts.length === 0 ? (
                 <div style={{ padding: '2.5rem 1rem', textAlign: 'center', color: '#475569', fontSize: '0.75rem' }}>
-                  لا توجد أصناف. استدعِ بيانات من المخزن أولاً.
+                  لا توجد أصناف مطابقة.
                 </div>
-              ) : filteredProducts.map(p => {
+              ) : pickerProducts.map(p => {
+
                 const isLow = p.stock <= (p.minStock ?? 5);
                 return (
                   <button

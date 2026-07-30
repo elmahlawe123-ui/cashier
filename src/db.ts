@@ -1,6 +1,7 @@
 import Dexie, { Table } from 'dexie';
 import { Product, Transaction, Customer, StoreSettings } from './types';
-import { syncProductToCloud } from './firebaseSync';
+import { syncProductToCloud, syncProductsBatchToCloud } from './firebaseSync';
+
 
 export class CashierDatabase extends Dexie {
   products!: Table<Product, string>;
@@ -48,31 +49,30 @@ export async function importFireSaleJSON(jsonInput: string): Promise<{ success: 
     }
 
 
-    let count = 0;
-    await db.transaction('rw', db.products, async () => {
-      for (const raw of itemsToImport as any[]) {
-        const product: Product = {
-          id: raw.id || generateId(),
-          name: raw.name || raw.title || 'منتج بدون اسم',
-          brand: raw.brand || raw.manufacturer || 'عام',
-          category: raw.category || 'عام',
-          price: Number(raw.price || raw.sellingPrice || 0),
-          purchasePrice: Number(raw.purchasePrice || raw.costPrice || 0),
-          stock: Number(raw.stock !== undefined ? raw.stock : (raw.quantity || 0)),
-          barcode: raw.barcode ? String(raw.barcode).trim() : '',
-          minStock: Number(raw.minStock || 5),
-          unit: raw.unit || 'قطع',
-          notes: raw.notes || '',
-          updatedAt: new Date().toISOString()
-        };
-        await db.products.put(product);
-        syncProductToCloud(product); // Sync to Firestore
-        count++;
-      }
-    });
+    const preparedProducts: Product[] = (itemsToImport as any[]).map(raw => ({
+      id: raw.id || generateId(),
+      name: raw.name || raw.title || 'منتج بدون اسم',
+      brand: raw.brand || raw.manufacturer || 'عام',
+      category: raw.category || 'عام',
+      price: Number(raw.price || raw.sellingPrice || 0),
+      purchasePrice: Number(raw.purchasePrice || raw.costPrice || 0),
+      stock: Number(raw.stock !== undefined ? raw.stock : (raw.quantity || 0)),
+      barcode: raw.barcode ? String(raw.barcode).trim() : '',
+      minStock: Number(raw.minStock || 5),
+      unit: raw.unit || 'قطع',
+      notes: raw.notes || '',
+      updatedAt: new Date().toISOString()
+    }));
 
-    return { success: true, count, message: `تم استدعاء واستيراد ${count} منتج بنجاح في مخزن الكاشير وتزامنه سحابياً` };
+    // ⚡ Fast 1-atomic local Dexie write
+    await db.products.bulkPut(preparedProducts);
+
+    // ⚡ Asynchronous background Cloud batch sync (non-blocking)
+    syncProductsBatchToCloud(preparedProducts).catch(err => console.error('Cloud batch sync error:', err));
+
+    return { success: true, count: preparedProducts.length, message: `تم استدعاء واستيراد ${preparedProducts.length} منتج بنجاح وبسرعة فائقة` };
   } catch (err: any) {
+
 
     console.error('Import FireSale JSON error:', err);
     return { success: false, count: 0, message: `خطأ في قراءة صيغة JSON: ${err.message}` };

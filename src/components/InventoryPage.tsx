@@ -29,6 +29,8 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ onOpenQRScanner })
     price: 0, purchasePrice: 0, stock: 0, barcode: '', minStock: 5, unit: 'قطعة',
   });
 
+  const [displayLimit, setDisplayLimit] = useState(60);
+
   const categories = Array.from(new Set(products.map(p => p.category || 'عام')));
   const brands     = Array.from(new Set(products.map(p => p.brand || 'عام')));
 
@@ -41,8 +43,11 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ onOpenQRScanner })
     );
   });
 
+  const visibleProducts = filtered.slice(0, displayLimit);
+
   const totalProducts  = products.length;
   const lowStockCount  = products.filter(p => p.stock <= (p.minStock ?? 5)).length;
+
   const totalStockVal  = products.reduce((s, p) => s + p.price * p.stock, 0);
   const totalSKUs      = new Set(products.map(p => p.category)).size;
 
@@ -234,7 +239,7 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ onOpenQRScanner })
                     <div style={{ fontSize: '0.7rem', color: '#334155', marginTop: '0.25rem' }}>جرب استدعاء بيانات المخزن عبر زر "استدعاء مخزن JSON"</div>
                   </td>
                 </tr>
-              ) : filtered.map(p => {
+              ) : visibleProducts.map(p => {
                 const isLow = p.stock <= (p.minStock ?? 5);
                 return (
                   <tr key={p.id}>
@@ -293,7 +298,21 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ onOpenQRScanner })
             </tbody>
           </table>
         </div>
+
+        {/* Load More Button */}
+        {filtered.length > displayLimit && (
+          <div style={{ padding: '0.875rem', textAlign: 'center', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(6,11,24,0.40)' }}>
+            <button
+              className="btn btn-ghost"
+              onClick={() => setDisplayLimit(prev => prev + 60)}
+              style={{ fontSize: '0.75rem', padding: '0.5rem 1.5rem', borderColor: 'rgba(99,102,241,0.30)', color: '#818cf8' }}
+            >
+              عرض المزيد (يتم عرض {visibleProducts.length} من أصل {filtered.length} صنف)
+            </button>
+          </div>
+        )}
       </div>
+
 
       {/* ══ IMPORT JSON MODAL ══════════════════════ */}
       {isImportOpen && (
