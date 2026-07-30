@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, importFireSaleJSON, exportFireSaleJSON, generateId } from '../db';
 import { syncProductToCloud, deleteProductFromCloud } from '../firebaseSync';
@@ -6,7 +6,7 @@ import { Product } from '../types';
 import {
   Package, Search, Plus, Upload, Download, FileJson,
   AlertTriangle, Layers, Tag, CheckCircle2, Trash2, Edit3,
-  Camera, X, ChevronDown, BarChart2,
+  Camera, X, ChevronDown, BarChart2, Loader2
 } from 'lucide-react';
 
 interface InventoryPageProps {
@@ -21,6 +21,7 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ onOpenQRScanner })
   const [selBrand, setSelBrand]         = useState('all');
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [jsonText, setJsonText]         = useState('');
+  const [isImporting, setIsImporting]   = useState(false);
   const [importStatus, setImportStatus] = useState<{ type: 'success' | 'error' | null; msg: string }>({ type: null, msg: '' });
   const [isAddOpen, setIsAddOpen]       = useState(false);
   const [editingProd, setEditingProd]   = useState<Product | null>(null);
@@ -31,47 +32,65 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ onOpenQRScanner })
 
   const [displayLimit, setDisplayLimit] = useState(60);
 
-  const categories = Array.from(new Set(products.map(p => p.category || 'عام')));
-  const brands     = Array.from(new Set(products.map(p => p.brand || 'عام')));
+  // ⚡ Memoized expensive collection statistics
+  const categories = useMemo(() => Array.from(new Set(products.map(p => p.category || 'عام'))), [products]);
+  const brands     = useMemo(() => Array.from(new Set(products.map(p => p.brand || 'عام'))), [products]);
 
-  const filtered = products.filter(p => {
+  const filtered = useMemo(() => {
     const q = searchTerm.toLowerCase();
-    return (
+    return products.filter(p => (
       (!q || p.name.toLowerCase().includes(q) || (p.barcode && p.barcode.includes(q)) || (p.brand && p.brand.toLowerCase().includes(q))) &&
       (selCategory === 'all' || p.category === selCategory) &&
       (selBrand    === 'all' || p.brand    === selBrand)
-    );
-  });
+    ));
+  }, [products, searchTerm, selCategory, selBrand]);
 
-  const visibleProducts = filtered.slice(0, displayLimit);
+  const visibleProducts = useMemo(() => filtered.slice(0, displayLimit), [filtered, displayLimit]);
 
-  const totalProducts  = products.length;
-  const lowStockCount  = products.filter(p => p.stock <= (p.minStock ?? 5)).length;
+  const totalProducts = products.length;
+  const lowStockCount = useMemo(() => products.filter(p => p.stock <= (p.minStock ?? 5)).length, [products]);
+  const totalStockVal = useMemo(() => products.reduce((s, p) => s + p.price * p.stock, 0), [products]);
+  const totalSKUs     = useMemo(() => new Set(products.map(p => p.category)).size, [products]);
 
-  const totalStockVal  = products.reduce((s, p) => s + p.price * p.stock, 0);
-  const totalSKUs      = new Set(products.map(p => p.category)).size;
-
-  /* ── Handlers ─────────────────────────────── */
+  /* ── Fast Asynchronous File/Text Import Handlers ─────────────── */
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
+    setIsImporting(true);
+    setImportStatus({ type: null, msg: '' });
+
     const reader = new FileReader();
-    reader.onload = async (ev) => {
+    reader.onload = (ev) => {
       const text = ev.target?.result as string;
       if (text) {
-        setJsonText(text);
-        const res = await importFireSaleJSON(text);
-        setImportStatus({ type: res.success ? 'success' : 'error', msg: res.message });
+        // Allow UI to paint loading state first
+        setTimeout(async () => {
+          const res = await importFireSaleJSON(text);
+          setImportStatus({ type: res.success ? 'success' : 'error', msg: res.message });
+          setIsImporting(false);
+        }, 60);
+      } else {
+        setIsImporting(false);
       }
     };
     reader.readAsText(f);
   };
 
-  const handleTextImport = async () => {
-    if (!jsonText.trim()) { setImportStatus({ type: 'error', msg: 'يرجى إدخال أو لصق نص الـ JSON أولاً' }); return; }
-    const res = await importFireSaleJSON(jsonText);
-    setImportStatus({ type: res.success ? 'success' : 'error', msg: res.message });
+  const handleTextImport = () => {
+    if (!jsonText.trim()) {
+      setImportStatus({ type: 'error', msg: 'يرجى إدخال أو لصق نص الـ JSON أولاً' });
+      return;
+    }
+    setIsImporting(true);
+    setImportStatus({ type: null, msg: '' });
+
+    setTimeout(async () => {
+      const res = await importFireSaleJSON(jsonText);
+      setImportStatus({ type: res.success ? 'success' : 'error', msg: res.message });
+      setIsImporting(false);
+    }, 60);
   };
+
 
   const handleExport = async () => {
     const json = await exportFireSaleJSON();
@@ -381,12 +400,13 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ onOpenQRScanner })
 
               {/* Actions */}
               <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1rem' }}>
-                <button className="btn btn-ghost" onClick={() => { setIsImportOpen(false); setImportStatus({ type: null, msg: '' }); }}>إغلاق</button>
-                <button className="btn btn-primary" onClick={handleTextImport}>
-                  <CheckCircle2 className="w-4 h-4" />
-                  تأكيد الاستيراد
+                <button disabled={isImporting} className="btn btn-ghost" onClick={() => { setIsImportOpen(false); setImportStatus({ type: null, msg: '' }); }}>إغلاق</button>
+                <button disabled={isImporting} className="btn btn-primary" onClick={handleTextImport}>
+                  {isImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                  {isImporting ? 'جاري التحليل والمقارنة...' : 'تأكيد الاستيراد'}
                 </button>
               </div>
+
             </div>
           </div>
         </div>
