@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, importFireSaleJSON, exportFireSaleJSON, generateId } from '../db';
+import { syncProductToCloud, deleteProductFromCloud } from '../firebaseSync';
 import { Product } from '../types';
 import {
   Package, Search, Plus, Upload, Download, FileJson,
@@ -101,12 +102,17 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ onOpenQRScanner })
       updatedAt: new Date().toISOString(),
     };
     await db.products.put(p);
+    syncProductToCloud(p);
     setIsAddOpen(false);
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm('هل أنت متأكد من حذف هذا الصنف من المخزن؟')) await db.products.delete(id);
+    if (confirm('هل أنت متأكد من حذف هذا الصنف من المخزن؟')) {
+      await db.products.delete(id);
+      deleteProductFromCloud(id);
+    }
   };
+
 
   /* ── Render ───────────────────────────────── */
   return (

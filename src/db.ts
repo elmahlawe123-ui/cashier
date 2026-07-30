@@ -1,5 +1,6 @@
 import Dexie, { Table } from 'dexie';
 import { Product, Transaction, Customer, StoreSettings } from './types';
+import { syncProductToCloud } from './firebaseSync';
 
 export class CashierDatabase extends Dexie {
   products!: Table<Product, string>;
@@ -46,6 +47,7 @@ export async function importFireSaleJSON(jsonInput: string): Promise<{ success: 
       return { success: false, count: 0, message: 'لم يتم العثور على أي منتجات في ملف الـ JSON المرفوع' };
     }
 
+
     let count = 0;
     await db.transaction('rw', db.products, async () => {
       for (const raw of itemsToImport as any[]) {
@@ -64,12 +66,14 @@ export async function importFireSaleJSON(jsonInput: string): Promise<{ success: 
           updatedAt: new Date().toISOString()
         };
         await db.products.put(product);
+        syncProductToCloud(product); // Sync to Firestore
         count++;
       }
     });
 
-    return { success: true, count, message: `تم استدعاء واستيراد ${count} منتج بنجاح في مخزن الكاشير` };
+    return { success: true, count, message: `تم استدعاء واستيراد ${count} منتج بنجاح في مخزن الكاشير وتزامنه سحابياً` };
   } catch (err: any) {
+
     console.error('Import FireSale JSON error:', err);
     return { success: false, count: 0, message: `خطأ في قراءة صيغة JSON: ${err.message}` };
   }

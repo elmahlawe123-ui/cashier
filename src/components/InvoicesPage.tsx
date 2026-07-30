@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, generateId } from '../db';
+import { syncTransactionToCloud, syncProductToCloud } from '../firebaseSync';
 import { Product, Transaction, TransactionItem } from '../types';
 import { CameraQRScanner } from './CameraQRScanner';
 import { InvoiceModal } from './InvoiceModal';
@@ -100,13 +101,19 @@ export const InvoicesPage: React.FC = () => {
       await db.transactions.put(tx);
       for (const item of cart) {
         const prod = await db.products.get(item.productId);
-        if (prod) await db.products.update(item.productId, { stock: Math.max(0, prod.stock - item.quantity) });
+        if (prod) {
+          const updatedProd = { ...prod, stock: Math.max(0, prod.stock - item.quantity) };
+          await db.products.put(updatedProd);
+          syncProductToCloud(updatedProd);
+        }
       }
     });
+    syncTransactionToCloud(tx);
     setSelectedInvoice(tx);
     setIsInvoiceOpen(true);
     clearCart();
   };
+
 
   const filteredProducts     = products.filter(p => {
     const q = productSearch.toLowerCase();
