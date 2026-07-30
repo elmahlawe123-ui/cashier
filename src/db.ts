@@ -26,11 +26,20 @@ export function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
 }
 
-// دالة استيراد وتفسير بيانات المخزن بصيغة FireSale / POS JSON
+// دالة توليد معرف ثوابت ومستقر بناءً على الكود أو اسم واسم الماركة لمنع التكرار
+function getStableId(raw: any): string {
+  if (raw.id && String(raw.id).trim()) return String(raw.id).trim();
+  if (raw.barcode && String(raw.barcode).trim()) return 'bc_' + String(raw.barcode).trim().toLowerCase();
+  const nameSlug = String(raw.name || raw.title || 'item').trim().replace(/\s+/g, '_').toLowerCase();
+  const brandSlug = String(raw.brand || raw.manufacturer || 'عام').trim().replace(/\s+/g, '_').toLowerCase();
+  return `p_${nameSlug}_${brandSlug}`;
+}
+
+// دالة استيراد وتفسير بيانات المخزن بصيغة FireSale / POS JSON الذكية
 export async function importFireSaleJSON(jsonInput: string): Promise<{ success: boolean; count: number; message: string }> {
   try {
     const data = JSON.parse(jsonInput);
-    let itemsToImport: Product[] = [];
+    let itemsToImport: any[] = [];
 
     if (Array.isArray(data)) {
       itemsToImport = data;
@@ -40,7 +49,7 @@ export async function importFireSaleJSON(jsonInput: string): Promise<{ success: 
       } else if (Array.isArray(data.items)) {
         itemsToImport = data.items;
       } else if (data.id && data.name) {
-        itemsToImport = [data as Product];
+        itemsToImport = [data];
       }
     }
 
@@ -48,36 +57,100 @@ export async function importFireSaleJSON(jsonInput: string): Promise<{ success: 
       return { success: false, count: 0, message: 'لم يتم العثور على أي منتجات في ملف الـ JSON المرفوع' };
     }
 
+    // جلب المنتجات الحالية من قاعدة البيانات للمقارنة الذكية
+    const existingProducts = await db.products.toArray();
+    const existingMap = new Map<string, Product>(existingProducts.map(p => [p.id, p]));
 
-    const preparedProducts: Product[] = (itemsToImport as any[]).map(raw => ({
-      id: raw.id || generateId(),
-      name: raw.name || raw.title || 'منتج بدون اسم',
-      brand: raw.brand || raw.manufacturer || 'عام',
-      category: raw.category || 'عام',
-      price: Number(raw.price || raw.sellingPrice || 0),
-      purchasePrice: Number(raw.purchasePrice || raw.costPrice || 0),
-      stock: Number(raw.stock !== undefined ? raw.stock : (raw.quantity || 0)),
-      barcode: raw.barcode ? String(raw.barcode).trim() : '',
-      minStock: Number(raw.minStock || 5),
-      unit: raw.unit || 'قطع',
-      notes: raw.notes || '',
-      updatedAt: new Date().toISOString()
-    }));
+    const toSync: Product[] = [];
+    let addedCount = 0;
+    let updatedCount = 0;
+    let skippedCount = 0;
 
-    // ⚡ Fast 1-atomic local Dexie write
-    await db.products.bulkPut(preparedProducts);
+    for (const raw of itemsToImport) {
+      const stableId = getStableId(raw);
+      const name = String(raw.name || raw.title || 'منتج بدون اسم').trim();
+      const brand = String(raw.brand || raw.manufacturer || 'عام').trim();
+      const category = String(raw.category || 'عام').trim();
+      const price = Number(raw.price || raw.sellingPrice || 0);
+      const purchasePrice = Number(raw.purchasePrice || raw.costPrice || 0);
+      const stock = Number(raw.stock !== undefined ? raw.stock : (raw.quantity || 0));
+      const barcode = raw.barcode ? String(raw.barcode).trim() : '';
+      const minStock = Number(raw.minStock || 5);
+      const unit = String(raw.unit || 'قطعة').trim();
 
-    // ⚡ Asynchronous background Cloud batch sync (non-blocking)
-    syncProductsBatchToCloud(preparedProducts).catch(err => console.error('Cloud batch sync error:', err));
+      const existing = existingMap.get(stableId);
 
-    return { success: true, count: preparedProducts.length, message: `تم استدعاء واستيراد ${preparedProducts.length} منتج بنجاح وبسرعة فائقة` };
+      if (existing) {
+        // مقارنة الحقول لمعرفة هل تغير أي شيء (سعر، اسم، كمية، ماركة، باركود)
+        const isIdentical =
+          existing.name === name &&
+          existing.brand === brand &&
+          existing.category === category &&
+          existing.price === price &&
+          existing.stock === stock &&
+          existing.barcode === barcode &&
+          existing.unit === unit;
+
+        if (isIdentical) {
+          skippedCount++;
+          continue; // ⚡ تخطي المنتجات المطابقة 100% دون أي كتابة لقاعدة البيانات أو السحابة
+        } else {
+          // ⚡ صنف موجود وتعدل (السعر أو الاسم أو الكمية)
+          const updatedProd: Product = {
+            ...existing,
+            name,
+            brand,
+            category,
+            price,
+            purchasePrice,
+            stock,
+            barcode,
+            minStock,
+            unit,
+            updatedAt: new Date().toISOString()
+          };
+          toSync.push(updatedProd);
+          updatedCount++;
+        }
+      } else {
+        // ⚡ صنف جديد بالكامل
+        const newProd: Product = {
+          id: stableId,
+          name,
+          brand,
+          category,
+          price,
+          purchasePrice,
+          stock,
+          barcode,
+          minStock,
+          unit,
+          notes: raw.notes || '',
+          updatedAt: new Date().toISOString()
+        };
+        toSync.push(newProd);
+        addedCount++;
+      }
+    }
+
+    if (toSync.length > 0) {
+      // ⚡ حفظ التعديلات والجديد فقط دفعة واحدة فائقة السرعة
+      await db.products.bulkPut(toSync);
+      syncProductsBatchToCloud(toSync).catch(err => console.error('Cloud sync error:', err));
+    }
+
+    let msg = `تم معالجة ${itemsToImport.length} صنف: `;
+    if (addedCount > 0) msg += `تم إضافة ${addedCount} صنف جديد. `;
+    if (updatedCount > 0) msg += `تم تحديث ${updatedCount} صنف. `;
+    if (skippedCount > 0) msg += `تم تخطي ${skippedCount} صنف متطابق بدون تغيير.`;
+
+    return { success: true, count: itemsToImport.length, message: msg };
   } catch (err: any) {
-
-
     console.error('Import FireSale JSON error:', err);
     return { success: false, count: 0, message: `خطأ في قراءة صيغة JSON: ${err.message}` };
   }
 }
+
 
 // دالة تصدير بيانات المخزن كـ FireSale JSON
 export async function exportFireSaleJSON(): Promise<string> {
