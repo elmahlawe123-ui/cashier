@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, importFireSaleJSON, exportFireSaleJSON, generateId } from '../db';
 import { syncProductToCloud, deleteProductFromCloud } from '../firebaseSync';
@@ -20,7 +20,6 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ onOpenQRScanner })
   const [selCategory, setSelCategory]   = useState('all');
   const [selBrand, setSelBrand]         = useState('all');
   const [isImportOpen, setIsImportOpen] = useState(false);
-  const [jsonText, setJsonText]         = useState('');
   const [isImporting, setIsImporting]   = useState(false);
   const [importStatus, setImportStatus] = useState<{ type: 'success' | 'error' | null; msg: string }>({ type: null, msg: '' });
   const [isAddOpen, setIsAddOpen]       = useState(false);
@@ -31,6 +30,14 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ onOpenQRScanner })
   });
 
   const [displayLimit, setDisplayLimit] = useState(60);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // ⚡ Open Import Modal Instantly (0ms latency)
+  const openImportModal = () => {
+    setImportStatus({ type: null, msg: '' });
+    setIsImporting(false);
+    setIsImportOpen(true);
+  };
 
   // ⚡ Memoized expensive collection statistics
   const categories = useMemo(() => Array.from(new Set(products.map(p => p.category || 'عام'))), [products]);
@@ -68,7 +75,7 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ onOpenQRScanner })
           const res = await importFireSaleJSON(text);
           setImportStatus({ type: res.success ? 'success' : 'error', msg: res.message });
           setIsImporting(false);
-        }, 60);
+        }, 50);
       } else {
         setIsImporting(false);
       }
@@ -77,7 +84,8 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ onOpenQRScanner })
   };
 
   const handleTextImport = () => {
-    if (!jsonText.trim()) {
+    const textVal = textareaRef.current?.value?.trim() || '';
+    if (!textVal) {
       setImportStatus({ type: 'error', msg: 'يرجى إدخال أو لصق نص الـ JSON أولاً' });
       return;
     }
@@ -85,11 +93,12 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ onOpenQRScanner })
     setImportStatus({ type: null, msg: '' });
 
     setTimeout(async () => {
-      const res = await importFireSaleJSON(jsonText);
+      const res = await importFireSaleJSON(textVal);
       setImportStatus({ type: res.success ? 'success' : 'error', msg: res.message });
       setIsImporting(false);
-    }, 60);
+    }, 50);
   };
+
 
 
   const handleExport = async () => {
@@ -155,10 +164,11 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ onOpenQRScanner })
 
       {/* ── Action Bar ───────────────────────────── */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem', marginBottom: '1.25rem' }}>
-        <button className="btn btn-primary" onClick={() => setIsImportOpen(true)}>
+        <button className="btn btn-primary" onClick={openImportModal}>
           <FileJson className="w-4 h-4" />
           استدعاء مخزن JSON
         </button>
+
         <button className="btn btn-ghost" onClick={handleExport}>
           <Download style={{ width: '1rem', height: '1rem', color: '#6ee7b7' }} />
           تصدير JSON
@@ -377,11 +387,14 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ onOpenQRScanner })
 
               {/* Textarea */}
               <textarea
-                rows={5} value={jsonText} onChange={e => setJsonText(e.target.value)}
+                ref={textareaRef}
+                defaultValue=""
+                rows={5}
                 className="glass-input font-mono"
                 style={{ borderRadius: '0.75rem', padding: '0.75rem', fontSize: '0.72rem', resize: 'vertical', lineHeight: 1.5, width: '100%' }}
                 placeholder={'[\n  {"id":"1","name":"محبس 1/2 بوصة","price":120,"stock":50},\n  ...\n]'}
               />
+
 
               {/* Status Message */}
               {importStatus.type && (
