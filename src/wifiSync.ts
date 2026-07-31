@@ -94,3 +94,28 @@ export async function sendInvoiceToPcWifi(tx: Transaction, targetIp?: string): P
     return { success: false, message: `تعذر إرسال الفاتورة للكمبيوتر: ${err.message}` };
   }
 }
+
+export async function sendItemToPcSalesScreen(product: any, quantity: number = 1, targetIp?: string): Promise<{ success: boolean; message: string }> {
+  const ip = (targetIp || getSavedPcIp()).trim();
+  if (!ip) {
+    return { success: false, message: 'عنوان IP الكمبيوتر غير معرف' };
+  }
+
+  const url = `http://${ip.replace(/^https?:\/\//, '')}/api/wifi/add-item`;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ product, quantity }),
+    });
+
+    if (res.ok) {
+      return { success: true, message: `تم إرسال (${product.name}) إلى شاشة مبيعات الكمبيوتر!` };
+    }
+    return { success: false, message: 'لم يستجب كمبيوتر المحل' };
+  } catch (err: any) {
+    return { success: false, message: `تعذر إرسال الصنف للكمبيوتر: ${err.message}` };
+  }
+}
+
+

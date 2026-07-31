@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Product } from '../types';
 import { ShoppingBag, Plus, Minus, CheckCircle2, AlertTriangle, X, Tag, Package, Barcode } from 'lucide-react';
+import { sendItemToPcSalesScreen } from '../wifiSync';
+import { showToast } from './Toast';
+
 
 interface Props {
   isOpen: boolean;
@@ -206,8 +209,14 @@ export const ScanAddProductModal: React.FC<Props> = ({
                 <button
                   type="button"
                   className="btn btn-success"
+
                   onClick={() => {
                     onConfirmAdd(product, quantity);
+                    sendItemToPcSalesScreen(product, quantity).then(res => {
+                      if (res.success) {
+                        showToast('تم إرسال الصنف للكمبيوتر 💻', `${product.name} (${quantity} قطعة)`, 'success');
+                      }
+                    });
                     onClose();
                   }}
                   style={{ flex: 1, justifyContent: 'center', fontSize: '0.875rem', padding: '0.65rem' }}
@@ -216,6 +225,7 @@ export const ScanAddProductModal: React.FC<Props> = ({
                   إضافة للفاتورة ({quantity} قطعة)
                 </button>
               </div>
+
             </>
           ) : (
             /* Product Not Found State */
