@@ -13,19 +13,22 @@ interface Props {
 export const CameraQRScanner: React.FC<Props> = ({
   isOpen, onClose, onScan, title = 'مسح QR / بار كود بالكاميرا', scanDelayMs = 2500,
 }) => {
-  const [cameras, setCameras]     = useState<{ id: string; label: string }[]>([]);
-  const [camId, setCamId]         = useState('');
-  const [isScanning, setScanning] = useState(false);
-  const [error, setError]         = useState<string | null>(null);
-  const [manual, setManual]       = useState('');
-  const scannerRef = useRef<Html5Qrcode | null>(null);
-  const lastScanTimeRef = useRef<number>(0);
+  const [cameras, setCameras] = useState<{ id: string; label: string }[]>([]);
+  const [camId, setCamId]     = useState('');
+  const [error, setError]     = useState<string | null>(null);
+  const [manual, setManual]   = useState('');
+
+  // Use refs instead of state for scanner control to avoid stale closure bugs
+  const scannerRef    = useRef<Html5Qrcode | null>(null);
+  const isScanningRef = useRef(false);
+  const lockedRef     = useRef(false); // 🔒 Lock after first scan result to prevent double-trigger
 
   useEffect(() => {
     if (!isOpen) {
-      stop();
+      stopScanner();
       return;
     }
+    lockedRef.current = false;
     Html5Qrcode.getCameras()
       .then(list => {
         if (!list.length) { setError('لم يتم العثور على كاميرا متصلة'); return; }
@@ -37,74 +40,80 @@ export const CameraQRScanner: React.FC<Props> = ({
         startScanner(id);
       })
       .catch(() => setError('تعذر الوصول للكاميرا — تأكد من إذن الكاميرا في المتصفح'));
-    return () => { stop(); };
+
+    return () => { stopScanner(); };
   }, [isOpen]);
 
-  const startScanner = async (cameraId: string) => {
+  const stopScanner = async () => {
+    const qr = scannerRef.current;
+    if (!qr) return;
+    scannerRef.current = null;
+    isScanningRef.current = false;
     try {
-      await stop();
-      setError(null);
+      await qr.stop();
+      qr.clear();
+    } catch {
+      try { qr.clear(); } catch {}
+    }
+  };
+
+  const startScanner = async (cameraId: string) => {
+    await stopScanner();
+    setError(null);
+    lockedRef.current = false;
+
+    try {
       const qr = new Html5Qrcode('qr-reader');
       scannerRef.current = qr;
-      await qr.start(cameraId, { fps: 10, qrbox: { width: 240, height: 240 } },
-        (text) => {
-          const now = Date.now();
-          if (now - lastScanTimeRef.current < scanDelayMs) {
-            return;
-          }
-          lastScanTimeRef.current = now;
 
-          // Beep audio feedback ONCE
+      await qr.start(
+        cameraId,
+        { fps: 10, qrbox: { width: 240, height: 240 } },
+        (text) => {
+          // 🔒 If already handled a scan result, ignore all subsequent callbacks
+          if (lockedRef.current) return;
+          lockedRef.current = true;
+
+          // Beep
           try {
             const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-            const o = ctx.createOscillator(); const g = ctx.createGain();
+            const o = ctx.createOscillator();
+            const g = ctx.createGain();
             o.connect(g); g.connect(ctx.destination);
-            o.frequency.value = 1100; g.gain.setValueAtTime(0.08, ctx.currentTime);
+            o.frequency.value = 1100;
+            g.gain.setValueAtTime(0.08, ctx.currentTime);
             o.start(); o.stop(ctx.currentTime + 0.12);
           } catch {}
 
-          // ⚡ STOP CAMERA IMMEDIATELY on capture so it stops beeping & scanning in background!
-          stop().then(() => {
-            onScan(text);
-          }).catch(() => {
+          // Stop camera then fire onScan
+          stopScanner().finally(() => {
             onScan(text);
           });
-        }, () => {});
-      setScanning(true);
+        },
+        () => {}
+      );
+
+      isScanningRef.current = true;
     } catch {
       setError('فشل تشغيل الكاميرا المحددة — جرب كاميرا أخرى أو أدخل الكود يدوياً');
-      setScanning(false);
-    }
-  };
-
-  const stop = async () => {
-    if (scannerRef.current) {
-      try {
-        if (isScanning) {
-          await scannerRef.current.stop();
-        }
-        scannerRef.current.clear();
-      } catch {}
-      finally {
-        scannerRef.current = null;
-        setScanning(false);
-      }
-    }
-  };
-
-  const handleManual = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (manual.trim()) {
-      stop().then(() => {
-        onScan(manual.trim());
-        setManual('');
-      });
     }
   };
 
   const handleClose = () => {
-    stop().then(() => {
+    stopScanner().finally(() => {
       onClose();
+    });
+  };
+
+  const handleManual = (e: React.FormEvent) => {
+    e.preventDefault();
+    const val = manual.trim();
+    if (!val) return;
+    if (lockedRef.current) return;
+    lockedRef.current = true;
+    stopScanner().finally(() => {
+      onScan(val);
+      setManual('');
     });
   };
 
@@ -154,7 +163,6 @@ export const CameraQRScanner: React.FC<Props> = ({
               background: '#000',
               minHeight: '260px', display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
-              {/* Corner decorators */}
               {[
                 { top: '0.6rem', right: '0.6rem', borderRight: '2px solid #6366f1', borderTop: '2px solid #6366f1' },
                 { top: '0.6rem', left: '0.6rem', borderLeft: '2px solid #6366f1', borderTop: '2px solid #6366f1' },
@@ -167,7 +175,6 @@ export const CameraQRScanner: React.FC<Props> = ({
             </div>
           )}
 
-          {/* Camera Switcher */}
           {cameras.length > 1 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <SwitchCamera style={{ width: '0.9rem', height: '0.9rem', color: '#64748b', flexShrink: 0 }} />
@@ -179,7 +186,6 @@ export const CameraQRScanner: React.FC<Props> = ({
             </div>
           )}
 
-          {/* Manual Input Fallback */}
           <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '0.875rem' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.7rem', fontWeight: 700, color: '#64748b', marginBottom: '0.5rem' }}>
               <Keyboard className="w-3.5 h-3.5 text-indigo-400" />
@@ -197,7 +203,6 @@ export const CameraQRScanner: React.FC<Props> = ({
             </form>
           </div>
 
-          {/* ❌ Explicit Close Scanner Button */}
           <button
             type="button"
             className="btn btn-danger"
