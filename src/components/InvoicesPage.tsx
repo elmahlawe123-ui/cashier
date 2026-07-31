@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, generateId } from '../db';
 import { syncTransactionToCloud, syncProductToCloud } from '../firebaseSync';
 import { Product, Transaction, TransactionItem } from '../types';
 import { CameraQRScanner } from './CameraQRScanner';
 import { InvoiceModal } from './InvoiceModal';
+import { ScanAddProductModal } from './ScanAddProductModal';
 import {
   Receipt, Search, Trash2, Camera, CheckCircle2, FileText, QrCode, DollarSign,
   CreditCard, Smartphone, Banknote, X, Clock, Plus, User, ShoppingBag
@@ -17,7 +18,11 @@ const PAYMENT_METHODS = [
   { id: 'instapay',      icon: <DollarSign className="w-4 h-4" />, label: 'إنستا' },
 ] as const;
 
-export const InvoicesPage: React.FC = () => {
+interface InvoicesPageProps {
+  cameraTrigger?: number;
+}
+
+export const InvoicesPage: React.FC<InvoicesPageProps> = ({ cameraTrigger }) => {
   const products     = useLiveQuery(() => db.products.toArray()) || [];
   const transactions = useLiveQuery(() => db.transactions.orderBy('date').reverse().toArray()) || [];
 
@@ -32,20 +37,44 @@ export const InvoicesPage: React.FC = () => {
   const [selectedInvoice, setSelectedInvoice] = useState<Transaction | null>(null);
   const [isInvoiceOpen, setIsInvoiceOpen]     = useState(false);
 
+  // ⚡ Scanned Product Modal State
+  const [scanModal, setScanModal] = useState<{
+    isOpen: boolean;
+    product: Product | null;
+    scannedCode: string | null;
+  }>({ isOpen: false, product: null, scannedCode: null });
+
+  // Handle Navbar Camera Trigger
+  useEffect(() => {
+    if (cameraTrigger && cameraTrigger > 0) {
+      setCameraMode('product');
+      setIsCameraOpen(true);
+    }
+  }, [cameraTrigger]);
+
   const subTotal   = cart.reduce((s, i) => s + i.total, 0);
   const finalTotal = Math.max(0, subTotal - discount);
 
   /* ── Cart operations ──────────────────────── */
-  const addToCart = (p: Product) => {
+  const addToCart = (p: Product, qtyToAdd: number = 1) => {
     setCart(prev => {
       const idx = prev.findIndex(i => i.productId === p.id);
       if (idx > -1) {
         const next = [...prev];
-        const qty  = next[idx].quantity + 1;
-        next[idx]  = { ...next[idx], quantity: qty, total: qty * next[idx].price };
+        const newQty = next[idx].quantity + qtyToAdd;
+        next[idx] = { ...next[idx], quantity: newQty, total: newQty * next[idx].price };
         return next;
       }
-      return [...prev, { productId: p.id, productName: p.name, brand: p.brand, category: p.category, quantity: 1, price: p.price, total: p.price, barcode: p.barcode }];
+      return [...prev, {
+        productId: p.id,
+        productName: p.name,
+        brand: p.brand,
+        category: p.category,
+        quantity: qtyToAdd,
+        price: p.price,
+        total: p.price * qtyToAdd,
+        barcode: p.barcode
+      }];
     });
   };
 
@@ -64,14 +93,25 @@ export const InvoicesPage: React.FC = () => {
     const clean = code.trim();
     if (cameraMode === 'product') {
       const p = products.find(pr => (pr.barcode && pr.barcode.trim() === clean) || pr.id === clean);
-      if (p) addToCart(p);
-      else alert(`لم يُعثر على صنف بالكود: ${clean}`);
+      setScanModal({
+        isOpen: true,
+        product: p || null,
+        scannedCode: clean,
+      });
     } else {
       let invNum: string | number = clean;
       try { if (clean.startsWith('{')) { const parsed = JSON.parse(clean); if (parsed.inv) invNum = parsed.inv; } } catch {}
       const t = transactions.find(tx => String(tx.invoiceNumber) === String(invNum) || tx.id === clean);
-      if (t) { setSelectedInvoice(t); setIsInvoiceOpen(true); }
-      else alert(`لم تُعثر على فاتورة بالكود: ${invNum}`);
+      if (t) {
+        setSelectedInvoice(t);
+        setIsInvoiceOpen(true);
+      } else {
+        setScanModal({
+          isOpen: true,
+          product: null,
+          scannedCode: `فاتورة #${invNum}`,
+        });
+      }
     }
   };
 
@@ -209,7 +249,10 @@ export const InvoicesPage: React.FC = () => {
                 searchResults.map(p => (
                   <button
                     key={p.id}
-                    onClick={() => { addToCart(p); setProductSearch(''); }}
+                    onClick={() => {
+                      setScanModal({ isOpen: true, product: p, scannedCode: p.barcode || p.id });
+                      setProductSearch('');
+                    }}
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                       width: '100%', padding: '0.65rem 0.85rem', borderRadius: '0.65rem',
@@ -459,6 +502,15 @@ export const InvoicesPage: React.FC = () => {
         isOpen={isInvoiceOpen}
         onClose={() => setIsInvoiceOpen(false)}
         transaction={selectedInvoice}
+      />
+
+      {/* ── 📱 Custom Scanned Add Product Modal (مع اختيار العدد وإظهار تفاصيل الصنف) ───── */}
+      <ScanAddProductModal
+        isOpen={scanModal.isOpen}
+        onClose={() => setScanModal({ ...scanModal, isOpen: false })}
+        product={scanModal.product}
+        scannedCode={scanModal.scannedCode}
+        onConfirmAdd={(prod, qty) => addToCart(prod, qty)}
       />
     </div>
   );

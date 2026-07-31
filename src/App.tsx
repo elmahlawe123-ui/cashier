@@ -2,14 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
 import { InventoryPage } from './components/InventoryPage';
 import { InvoicesPage } from './components/InvoicesPage';
-import { CameraQRScanner } from './components/CameraQRScanner';
 import { PinAuth } from './components/PinAuth';
 import { initCloudSync } from './firebaseSync';
 
 export const App: React.FC = () => {
   const [authenticated, setAuthenticated] = useState(false);
   const [activeTab, setActiveTab] = useState<'inventory' | 'invoices'>('invoices');
-  const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
+  const [cameraTrigger, setCameraTrigger] = useState(0);
 
   useEffect(() => {
     initCloudSync();
@@ -20,6 +19,10 @@ export const App: React.FC = () => {
     return <PinAuth onAuthenticated={() => setAuthenticated(true)} />;
   }
 
+  const handleNavbarCamera = () => {
+    setActiveTab('invoices');
+    setCameraTrigger(prev => prev + 1);
+  };
 
   return (
     <div className="min-h-screen" style={{ background: '#060b18', color: '#e2e8f0', fontFamily: "'Cairo', system-ui, sans-serif" }}>
@@ -27,24 +30,17 @@ export const App: React.FC = () => {
       <Navbar
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        onOpenQRScanner={() => setIsQRScannerOpen(true)}
+        onOpenQRScanner={handleNavbarCamera}
       />
 
       {/* Main Content */}
-      <main style={{ maxWidth: '1400px', width: '100%', margin: '0 auto', padding: '1.5rem 1rem 4rem' }}>
+      <main style={{ maxWidth: '1400px', width: '100%', margin: '0 auto', padding: '1rem 0.5rem 4rem' }}>
         {activeTab === 'inventory' ? (
-          <InventoryPage onOpenQRScanner={() => setIsQRScannerOpen(true)} />
+          <InventoryPage onOpenQRScanner={handleNavbarCamera} />
         ) : (
-          <InvoicesPage />
+          <InvoicesPage cameraTrigger={cameraTrigger} />
         )}
       </main>
-
-      {/* Global QR Camera */}
-      <CameraQRScanner
-        isOpen={isQRScannerOpen}
-        onClose={() => setIsQRScannerOpen(false)}
-        onScan={(code) => alert(`تم مسح الرمز: ${code}`)}
-      />
     </div>
   );
 };
