@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, generateId } from '../db';
 import { syncTransactionToCloud, syncProductToCloud } from '../firebaseSync';
-import { sendInvoiceToPcWifi } from '../wifiSync';
+import { sendInvoiceToPcWifi, savePcIp, testPcConnection, pullProductsFromPcWifi } from '../wifiSync';
 import { Product, Transaction, TransactionItem } from '../types';
+
 
 import { CameraQRScanner } from './CameraQRScanner';
 import { InvoiceModal } from './InvoiceModal';
@@ -91,8 +92,24 @@ export const InvoicesPage: React.FC<InvoicesPageProps> = ({ cameraTrigger }) => 
   const clearCart = () => { setCart([]); setCustomerName(''); setDiscount(0); setPayMethod('cash'); };
 
   /* ── QR Scan result handler ───────────────── */
-  const handleScan = (code: string) => {
+  const handleScan = async (code: string) => {
     const clean = code.trim();
+    setIsCameraOpen(false); // ⚡ Always stop camera scanning on capture
+
+    // ⚡ Check if scanned QR code is a Wi-Fi Pairing IP Address (e.g. 192.168.100.3:4000)
+    const isIpCode = /^https?:\/\//i.test(clean) || /^(\d{1,3}\.){3}\d{1,3}(:\d+)?$/.test(clean);
+    if (isIpCode) {
+      savePcIp(clean);
+      const testRes = await testPcConnection(clean);
+      if (testRes.success) {
+        const pullRes = await pullProductsFromPcWifi(clean);
+        alert(`🟢 تم ربط هاتف الكاشير بـ كمبيوتر المحل (${clean}) بنجاح!\n${pullRes.message}`);
+      } else {
+        alert(`⚠️ تم حفظ IP الكمبيوتر (${clean}). يرجى التوصيل بنفس شبكة الـ Wi-Fi.`);
+      }
+      return;
+    }
+
     if (cameraMode === 'product') {
       const p = products.find(pr => (pr.barcode && pr.barcode.trim() === clean) || pr.id === clean);
       setScanModal({
@@ -116,6 +133,7 @@ export const InvoicesPage: React.FC<InvoicesPageProps> = ({ cameraTrigger }) => 
       }
     }
   };
+
 
   /* ── Checkout ─────────────────────────────── */
   const checkout = async () => {
