@@ -535,8 +535,16 @@ export const InvoicesPage: React.FC<InvoicesPageProps> = ({ cameraTrigger }) => 
         onClose={() => setScanModal({ ...scanModal, isOpen: false })}
         product={scanModal.product}
         scannedCode={scanModal.scannedCode}
-        onConfirmAdd={(prod, qty) => addToCart(prod, qty)}
+        onConfirmAdd={(prod, qty) => {
+          addToCart(prod, qty);
+          // ⚡ إعادة فتح الكاميرا تلقائياً لمسح الصنف التالي بدون توقف
+          setTimeout(() => {
+            setCameraMode('product');
+            setIsCameraOpen(true);
+          }, 300);
+        }}
       />
+
     </div>
   );
 };

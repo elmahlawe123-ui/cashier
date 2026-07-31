@@ -7,10 +7,11 @@ interface Props {
   onClose: () => void;
   onScan: (code: string) => void;
   title?: string;
+  scanDelayMs?: number;
 }
 
 export const CameraQRScanner: React.FC<Props> = ({
-  isOpen, onClose, onScan, title = 'مسح QR / بار كود بالكاميرا',
+  isOpen, onClose, onScan, title = 'مسح QR / بار كود بالكاميرا', scanDelayMs = 2000,
 }) => {
   const [cameras, setCameras]     = useState<{ id: string; label: string }[]>([]);
   const [camId, setCamId]         = useState('');
@@ -18,6 +19,7 @@ export const CameraQRScanner: React.FC<Props> = ({
   const [error, setError]         = useState<string | null>(null);
   const [manual, setManual]       = useState('');
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const lastScanTimeRef = useRef<number>(0);
 
   useEffect(() => {
     if (!isOpen) { stop(); return; }
@@ -43,7 +45,14 @@ export const CameraQRScanner: React.FC<Props> = ({
       scannerRef.current = qr;
       await qr.start(cameraId, { fps: 15, qrbox: { width: 240, height: 240 } },
         (text) => {
-          // beep
+          const now = Date.now();
+          // ⚡ Debounce / Delay check to prevent accidental multiple scans
+          if (now - lastScanTimeRef.current < scanDelayMs) {
+            return;
+          }
+          lastScanTimeRef.current = now;
+
+          // Beep audio feedback
           try {
             const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
             const o = ctx.createOscillator(); const g = ctx.createGain();
@@ -51,7 +60,8 @@ export const CameraQRScanner: React.FC<Props> = ({
             o.frequency.value = 1100; g.gain.setValueAtTime(0.08, ctx.currentTime);
             o.start(); o.stop(ctx.currentTime + 0.12);
           } catch {}
-          onScan(text); onClose();
+
+          onScan(text);
         }, () => {});
       setScanning(true);
     } catch {
@@ -69,7 +79,10 @@ export const CameraQRScanner: React.FC<Props> = ({
 
   const handleManual = (e: React.FormEvent) => {
     e.preventDefault();
-    if (manual.trim()) { onScan(manual.trim()); setManual(''); onClose(); }
+    if (manual.trim()) {
+      onScan(manual.trim());
+      setManual('');
+    }
   };
 
   if (!isOpen) return null;
@@ -160,6 +173,16 @@ export const CameraQRScanner: React.FC<Props> = ({
               </button>
             </form>
           </div>
+
+          {/* ❌ Explicit Close Scanner Button */}
+          <button
+            type="button"
+            className="btn btn-danger"
+            onClick={onClose}
+            style={{ width: '100%', justifyContent: 'center', padding: '0.65rem', borderRadius: '0.75rem', fontSize: '0.85rem', marginTop: '0.25rem' }}
+          >
+            إغلاق الكاميرا وقارئ الباركود ❌
+          </button>
         </div>
 
         <div style={{ padding: '0.6rem 1.25rem', borderTop: '1px solid rgba(255,255,255,0.04)', textAlign: 'center', fontSize: '0.63rem', color: '#334155' }}>
