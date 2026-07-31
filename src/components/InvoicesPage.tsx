@@ -532,13 +532,15 @@ export const InvoicesPage: React.FC<InvoicesPageProps> = ({ cameraTrigger }) => 
       {/* ── 📱 Custom Scanned Add Product Modal (مع اختيار العدد وإظهار تفاصيل الصنف) ───── */}
       <ScanAddProductModal
         isOpen={scanModal.isOpen}
-        onClose={() => setScanModal({ ...scanModal, isOpen: false })}
+        onClose={() => setScanModal({ isOpen: false, product: null, scannedCode: null })}
         product={scanModal.product}
         scannedCode={scanModal.scannedCode}
         onConfirmAdd={(prod, qty) => {
           addToCart(prod, qty);
+          setScanModal({ isOpen: false, product: null, scannedCode: null });
         }}
       />
+
 
 
     </div>
