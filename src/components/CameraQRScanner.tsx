@@ -11,7 +11,7 @@ interface Props {
 }
 
 export const CameraQRScanner: React.FC<Props> = ({
-  isOpen, onClose, onScan, title = 'مسح QR / بار كود بالكاميرا', scanDelayMs = 2000,
+  isOpen, onClose, onScan, title = 'مسح QR / بار كود بالكاميرا', scanDelayMs = 2500,
 }) => {
   const [cameras, setCameras]     = useState<{ id: string; label: string }[]>([]);
   const [camId, setCamId]         = useState('');
@@ -22,7 +22,10 @@ export const CameraQRScanner: React.FC<Props> = ({
   const lastScanTimeRef = useRef<number>(0);
 
   useEffect(() => {
-    if (!isOpen) { stop(); return; }
+    if (!isOpen) {
+      stop();
+      return;
+    }
     Html5Qrcode.getCameras()
       .then(list => {
         if (!list.length) { setError('لم يتم العثور على كاميرا متصلة'); return; }
@@ -43,16 +46,15 @@ export const CameraQRScanner: React.FC<Props> = ({
       setError(null);
       const qr = new Html5Qrcode('qr-reader');
       scannerRef.current = qr;
-      await qr.start(cameraId, { fps: 15, qrbox: { width: 240, height: 240 } },
+      await qr.start(cameraId, { fps: 10, qrbox: { width: 240, height: 240 } },
         (text) => {
           const now = Date.now();
-          // ⚡ Debounce / Delay check to prevent accidental multiple scans
           if (now - lastScanTimeRef.current < scanDelayMs) {
             return;
           }
           lastScanTimeRef.current = now;
 
-          // Beep audio feedback
+          // Beep audio feedback ONCE
           try {
             const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
             const o = ctx.createOscillator(); const g = ctx.createGain();
@@ -61,7 +63,12 @@ export const CameraQRScanner: React.FC<Props> = ({
             o.start(); o.stop(ctx.currentTime + 0.12);
           } catch {}
 
-          onScan(text);
+          // ⚡ STOP CAMERA IMMEDIATELY on capture so it stops beeping & scanning in background!
+          stop().then(() => {
+            onScan(text);
+          }).catch(() => {
+            onScan(text);
+          });
         }, () => {});
       setScanning(true);
     } catch {
@@ -72,23 +79,39 @@ export const CameraQRScanner: React.FC<Props> = ({
 
   const stop = async () => {
     if (scannerRef.current) {
-      try { if (isScanning) await scannerRef.current.stop(); scannerRef.current.clear(); } catch {}
-      finally { scannerRef.current = null; setScanning(false); }
+      try {
+        if (isScanning) {
+          await scannerRef.current.stop();
+        }
+        scannerRef.current.clear();
+      } catch {}
+      finally {
+        scannerRef.current = null;
+        setScanning(false);
+      }
     }
   };
 
   const handleManual = (e: React.FormEvent) => {
     e.preventDefault();
     if (manual.trim()) {
-      onScan(manual.trim());
-      setManual('');
+      stop().then(() => {
+        onScan(manual.trim());
+        setManual('');
+      });
     }
+  };
+
+  const handleClose = () => {
+    stop().then(() => {
+      onClose();
+    });
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && handleClose()}>
       <div className="modal-box" style={{ maxWidth: '460px' }}>
 
         {/* Header */}
@@ -108,7 +131,7 @@ export const CameraQRScanner: React.FC<Props> = ({
             <div style={{ fontWeight: 800, color: '#f1f5f9', fontSize: '0.875rem' }}>{title}</div>
             <div style={{ fontSize: '0.63rem', color: '#64748b', marginTop: '1px' }}>وجه الكاميرا نحو الكود للمسح التلقائي الفوري</div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '0.35rem' }}>
+          <button onClick={handleClose} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '0.35rem' }}>
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -178,7 +201,7 @@ export const CameraQRScanner: React.FC<Props> = ({
           <button
             type="button"
             className="btn btn-danger"
-            onClick={onClose}
+            onClick={handleClose}
             style={{ width: '100%', justifyContent: 'center', padding: '0.65rem', borderRadius: '0.75rem', fontSize: '0.85rem', marginTop: '0.25rem' }}
           >
             إغلاق الكاميرا وقارئ الباركود ❌
