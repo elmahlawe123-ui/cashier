@@ -1,13 +1,14 @@
 import React from 'react';
-import { Package, Receipt, Store, Camera, Zap } from 'lucide-react';
+import { Package, Receipt, Store, Camera, Zap, Wifi } from 'lucide-react';
 
 interface NavbarProps {
   activeTab: 'inventory' | 'invoices';
   onTabChange: (tab: 'inventory' | 'invoices') => void;
   onOpenQRScanner: () => void;
+  onOpenWifiSync?: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ activeTab, onTabChange, onOpenQRScanner }) => {
+export const Navbar: React.FC<NavbarProps> = ({ activeTab, onTabChange, onOpenQRScanner, onOpenWifiSync }) => {
   return (
     <header className="sticky top-0 z-40 border-b border-indigo-500/20 shadow-xl" style={{ background: 'rgba(6,11,24,0.95)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)' }}>
       <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8">
@@ -99,23 +100,44 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, onTabChange, onOpenQR
             ))}
           </nav>
 
-          {/* ── QR Camera Shortcut ────────────── */}
-          <button
-            onClick={onOpenQRScanner}
-            className="btn btn-ghost"
-            style={{
-              padding: '0.35rem 0.6rem',
-              borderColor: 'rgba(99,102,241,0.30)',
-              color: '#818cf8',
-              fontSize: '0.7rem',
-              borderRadius: '0.6rem',
-              flexShrink: 0,
-            }}
-            title="فتح كاميرا الـ QR"
-          >
-            <Camera className="w-4 h-4 animate-pulse" />
-            <span className="hidden md:inline">مسح QR</span>
-          </button>
+          {/* ── Action Buttons ────────────── */}
+          <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+            {onOpenWifiSync && (
+              <button
+                onClick={onOpenWifiSync}
+                className="btn btn-ghost"
+                style={{
+                  padding: '0.35rem 0.6rem',
+                  borderColor: 'rgba(16,185,129,0.30)',
+                  color: '#6ee7b7',
+                  fontSize: '0.7rem',
+                  borderRadius: '0.6rem',
+                  flexShrink: 0,
+                }}
+                title="ربط Wi-Fi مع كمبيوتر المحل"
+              >
+                <Wifi className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">ربط Wi-Fi</span>
+              </button>
+            )}
+
+            <button
+              onClick={onOpenQRScanner}
+              className="btn btn-ghost"
+              style={{
+                padding: '0.35rem 0.6rem',
+                borderColor: 'rgba(99,102,241,0.30)',
+                color: '#818cf8',
+                fontSize: '0.7rem',
+                borderRadius: '0.6rem',
+                flexShrink: 0,
+              }}
+              title="فتح كاميرا الـ QR"
+            >
+              <Camera className="w-4 h-4 animate-pulse" />
+              <span className="hidden md:inline">مسح QR</span>
+            </button>
+          </div>
 
         </div>
       </div>

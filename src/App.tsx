@@ -3,12 +3,14 @@ import { Navbar } from './components/Navbar';
 import { InventoryPage } from './components/InventoryPage';
 import { InvoicesPage } from './components/InvoicesPage';
 import { PinAuth } from './components/PinAuth';
+import { WifiSyncModal } from './components/WifiSyncModal';
 import { initCloudSync } from './firebaseSync';
 
 export const App: React.FC = () => {
   const [authenticated, setAuthenticated] = useState(false);
   const [activeTab, setActiveTab] = useState<'inventory' | 'invoices'>('invoices');
   const [cameraTrigger, setCameraTrigger] = useState(0);
+  const [isWifiModalOpen, setIsWifiModalOpen] = useState(false);
 
   useEffect(() => {
     initCloudSync();
@@ -31,6 +33,7 @@ export const App: React.FC = () => {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         onOpenQRScanner={handleNavbarCamera}
+        onOpenWifiSync={() => setIsWifiModalOpen(true)}
       />
 
       {/* Main Content */}
@@ -41,6 +44,13 @@ export const App: React.FC = () => {
           <InvoicesPage cameraTrigger={cameraTrigger} />
         )}
       </main>
+
+      {/* Local Wi-Fi PC Sync Modal */}
+      <WifiSyncModal
+        isOpen={isWifiModalOpen}
+        onClose={() => setIsWifiModalOpen(false)}
+        onOpenQRScanner={handleNavbarCamera}
+      />
     </div>
   );
 };

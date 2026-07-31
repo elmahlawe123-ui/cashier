@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, generateId } from '../db';
 import { syncTransactionToCloud, syncProductToCloud } from '../firebaseSync';
+import { sendInvoiceToPcWifi } from '../wifiSync';
 import { Product, Transaction, TransactionItem } from '../types';
+
 import { CameraQRScanner } from './CameraQRScanner';
 import { InvoiceModal } from './InvoiceModal';
 import { ScanAddProductModal } from './ScanAddProductModal';
@@ -148,10 +150,12 @@ export const InvoicesPage: React.FC<InvoicesPageProps> = ({ cameraTrigger }) => 
       }
     });
     syncTransactionToCloud(tx);
+    sendInvoiceToPcWifi(tx).catch(err => console.warn('Wi-Fi PC sync notice:', err));
     setSelectedInvoice(tx);
     setIsInvoiceOpen(true);
     clearCart();
   };
+
 
   const filteredProducts = products.filter(p => {
     const q = productSearch.toLowerCase().trim();
