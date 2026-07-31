@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, generateId } from '../db';
 import { syncTransactionToCloud, syncProductToCloud } from '../firebaseSync';
@@ -49,6 +49,9 @@ export const InvoicesPage: React.FC<InvoicesPageProps> = ({ cameraTrigger }) => 
     scannedCode: string | null;
   }>({ isOpen: false, product: null, scannedCode: null });
 
+  // 🔒 Lock ref: يمنع handleScan من الاستدعاء المتكرر بسبب الكاميرا
+  const scanHandledRef = useRef(false);
+
   // Handle Navbar Camera Trigger
   useEffect(() => {
     if (cameraTrigger && cameraTrigger > 0) {
@@ -95,10 +98,16 @@ export const InvoicesPage: React.FC<InvoicesPageProps> = ({ cameraTrigger }) => 
 
   /* ── QR Scan result handler ───────────────── */
   const handleScan = async (code: string) => {
-    const clean = code.trim();
-    setIsCameraOpen(false); // ⚡ Always stop camera scanning on capture
+    // 🔒 منع الاستدعاء المزدوج تماماً
+    if (scanHandledRef.current) return;
+    scanHandledRef.current = true;
+    // إعادة تفعيل القفل بعد ثانيتين للسماح بمسح جديد
+    setTimeout(() => { scanHandledRef.current = false; }, 2000);
 
-    // ⚡ Check if scanned QR code is a Wi-Fi Pairing IP Address (e.g. 192.168.100.3:4000)
+    const clean = code.trim();
+    setIsCameraOpen(false);
+
+    // ⚡ Check if scanned QR code is a Wi-Fi Pairing IP Address
     const isIpCode = /^https?:\/\//i.test(clean) || /^(\d{1,3}\.){3}\d{1,3}(:\d+)?$/.test(clean);
     if (isIpCode) {
       savePcIp(clean);
@@ -112,14 +121,9 @@ export const InvoicesPage: React.FC<InvoicesPageProps> = ({ cameraTrigger }) => 
       return;
     }
 
-
     if (cameraMode === 'product') {
       const p = products.find(pr => (pr.barcode && pr.barcode.trim() === clean) || pr.id === clean);
-      setScanModal({
-        isOpen: true,
-        product: p || null,
-        scannedCode: clean,
-      });
+      setScanModal({ isOpen: true, product: p || null, scannedCode: clean });
     } else {
       let invNum: string | number = clean;
       try { if (clean.startsWith('{')) { const parsed = JSON.parse(clean); if (parsed.inv) invNum = parsed.inv; } } catch {}
@@ -128,11 +132,7 @@ export const InvoicesPage: React.FC<InvoicesPageProps> = ({ cameraTrigger }) => 
         setSelectedInvoice(t);
         setIsInvoiceOpen(true);
       } else {
-        setScanModal({
-          isOpen: true,
-          product: null,
-          scannedCode: `فاتورة #${invNum}`,
-        });
+        setScanModal({ isOpen: true, product: null, scannedCode: `فاتورة #${invNum}` });
       }
     }
   };
