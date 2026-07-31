@@ -4,6 +4,7 @@ import { InventoryPage } from './components/InventoryPage';
 import { InvoicesPage } from './components/InvoicesPage';
 import { PinAuth } from './components/PinAuth';
 import { WifiSyncModal } from './components/WifiSyncModal';
+import { ToastContainer } from './components/Toast';
 import { initCloudSync } from './firebaseSync';
 
 export const App: React.FC = () => {
@@ -28,6 +29,9 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen" style={{ background: '#060b18', color: '#e2e8f0', fontFamily: "'Cairo', system-ui, sans-serif" }}>
+      {/* Top Floating Toast Notifications */}
+      <ToastContainer />
+
       {/* Top Navbar */}
       <Navbar
         activeTab={activeTab}

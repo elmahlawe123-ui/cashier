@@ -9,6 +9,8 @@ import { Product, Transaction, TransactionItem } from '../types';
 import { CameraQRScanner } from './CameraQRScanner';
 import { InvoiceModal } from './InvoiceModal';
 import { ScanAddProductModal } from './ScanAddProductModal';
+import { showToast } from './Toast';
+
 import {
   Receipt, Search, Trash2, Camera, CheckCircle2, FileText, QrCode, DollarSign,
   CreditCard, Smartphone, Banknote, X, Clock, Plus, User, ShoppingBag
@@ -103,12 +105,13 @@ export const InvoicesPage: React.FC<InvoicesPageProps> = ({ cameraTrigger }) => 
       const testRes = await testPcConnection(clean);
       if (testRes.success) {
         const pullRes = await pullProductsFromPcWifi(clean);
-        alert(`🟢 تم ربط هاتف الكاشير بـ كمبيوتر المحل (${clean}) بنجاح!\n${pullRes.message}`);
+        showToast('تم ربط هاتف الكاشير بالكمبيوتر بنجاح 🟢', pullRes.message, 'success');
       } else {
-        alert(`⚠️ تم حفظ IP الكمبيوتر (${clean}). يرجى التوصيل بنفس شبكة الـ Wi-Fi.`);
+        showToast(`تم حفظ IP الكمبيوتر (${clean}) ⚠️`, 'تأكد أن الهاتف والكمبيوتر متصلان بنفس شبكة الـ Wi-Fi', 'error');
       }
       return;
     }
+
 
     if (cameraMode === 'product') {
       const p = products.find(pr => (pr.barcode && pr.barcode.trim() === clean) || pr.id === clean);
