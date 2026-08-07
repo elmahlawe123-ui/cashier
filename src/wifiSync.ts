@@ -119,25 +119,50 @@ export async function sendInvoiceToPcWifi(tx: Transaction, targetIp?: string): P
 
 export async function sendItemToPcSalesScreen(product: any, quantity: number = 1, targetIp?: string): Promise<{ success: boolean; message: string }> {
   const cleanIp = (targetIp || getSavedPcIp()).trim();
-  if (!cleanIp) {
-    return { success: false, message: 'عنوان IP الكمبيوتر غير معرف' };
+  let success = false;
+
+  // 1. Try Local Wi-Fi HTTP Server
+  if (cleanIp) {
+    const url = formatPcUrl(cleanIp, '/api/wifi/add-item');
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product, quantity }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        success = true;
+      }
+    } catch {}
   }
 
-  const url = formatPcUrl(cleanIp, '/api/wifi/add-item');
+  // 2. Dual Cloud Bridge (Firestore REST API) for Internet/GitHub Pages users
   try {
-    const res = await fetch(url, {
-      method: 'POST',
+    const docId = `item_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const fields = {
+      product: { stringValue: JSON.stringify(product) },
+      quantity: { integerValue: String(quantity) },
+      createdAt: { stringValue: new Date().toISOString() }
+    };
+    const cloudRes = await fetch(`https://firestore.googleapis.com/v1/projects/al-rawi-6a998/databases/(default)/documents/pending_wifi_items/${docId}`, {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ product, quantity }),
+      body: JSON.stringify({ fields })
     });
-
-    if (res.ok) {
-      return { success: true, message: `تم إرسال (${product.name}) إلى شاشة مبيعات الكمبيوتر!` };
+    if (cloudRes.ok) {
+      success = true;
     }
-    return { success: false, message: 'لم يستجب كمبيوتر المحل' };
-  } catch (err: any) {
-    return { success: false, message: `تعذر إرسال الصنف للكمبيوتر: ${err.message}` };
+  } catch {}
+
+  if (success) {
+    return { success: true, message: `تم إرسال (${product.name}) إلى شاشة مبيعات الكمبيوتر!` };
   }
+
+  return { success: false, message: 'تعذر الاتصال ببرنامج الكمبيوتر. يرجى التأكد من تشغيل خادم الربط.' };
 }
 
 export interface WifiDiagnosticResult {
