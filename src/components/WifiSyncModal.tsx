@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { getSavedPcIp, savePcIp, testPcConnection, pullProductsFromPcWifi } from '../wifiSync';
-import { Wifi, RefreshCw, CheckCircle2, AlertTriangle, X, QrCode, Server, Radio, Smartphone, Camera } from 'lucide-react';
+import { getSavedPcIp, savePcIp, testPcConnection, pullProductsFromPcWifi, runSmartWifiDiagnostics, WifiDiagnosticResult } from '../wifiSync';
+import { Wifi, RefreshCw, CheckCircle2, AlertTriangle, X, QrCode, Server, Radio, Smartphone, Camera, Stethoscope, ShieldAlert } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
@@ -12,6 +12,9 @@ export const WifiSyncModal: React.FC<Props> = ({ isOpen, onClose, onOpenQRScanne
   const [ip, setIp] = useState('');
   const [status, setStatus] = useState<{ type: 'success' | 'error' | 'loading' | null; msg: string }>({ type: null, msg: '' });
   const [isPulling, setIsPulling] = useState(false);
+  const [isDiagnosing, setIsDiagnosing] = useState(false);
+  const [diagnosticResult, setDiagnosticResult] = useState<WifiDiagnosticResult | null>(null);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -43,6 +46,14 @@ export const WifiSyncModal: React.FC<Props> = ({ isOpen, onClose, onOpenQRScanne
     });
   };
 
+  const handleRunDiagnostics = async () => {
+    setIsDiagnosing(true);
+    setShowDiagnostics(true);
+    const diag = await runSmartWifiDiagnostics(ip);
+    setDiagnosticResult(diag);
+    setIsDiagnosing(false);
+  };
+
   const handlePullProducts = async () => {
     setIsPulling(true);
     setStatus({ type: 'loading', msg: 'جاري سحب واستدعاء الأصناف من كمبيوتر المحل...' });
@@ -56,13 +67,13 @@ export const WifiSyncModal: React.FC<Props> = ({ isOpen, onClose, onOpenQRScanne
 
   return (
     <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal-box animate-slide-up" style={{ maxWidth: '480px' }}>
+      <div className="modal-box animate-slide-up" style={{ maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto' }}>
 
         {/* Header */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '1rem 1.25rem', borderBottom: '1px solid rgba(255,255,255,0.06)',
-          background: 'rgba(6,11,24,0.60)',
+          background: 'rgba(6,11,24,0.60)', position: 'sticky', top: 0, zIndex: 10
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
             <div style={{
@@ -102,7 +113,7 @@ export const WifiSyncModal: React.FC<Props> = ({ isOpen, onClose, onOpenQRScanne
                   type="text"
                   value={ip}
                   onChange={e => setIp(e.target.value)}
-                  placeholder="مثال: 192.168.1.105:4000"
+                  placeholder="مثال: 192.168.100.3:4000"
                   className="glass-input font-mono"
                   style={{ width: '100%', borderRadius: '0.65rem', paddingRight: '2.2rem', paddingLeft: '0.75rem', paddingTop: '0.5rem', paddingBottom: '0.5rem', fontSize: '0.82rem', fontWeight: 700 }}
                 />
@@ -117,20 +128,32 @@ export const WifiSyncModal: React.FC<Props> = ({ isOpen, onClose, onOpenQRScanne
               </button>
             </div>
 
-            {onOpenQRScanner && (
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              {onOpenQRScanner && (
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => {
+                    onClose();
+                    onOpenQRScanner();
+                  }}
+                  style={{ flex: 1, justifyContent: 'center', fontSize: '0.72rem', borderColor: 'rgba(99,102,241,0.25)', color: '#818cf8' }}
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  مسح QR الربط 📷
+                </button>
+              )}
+              
               <button
                 type="button"
                 className="btn btn-ghost"
-                onClick={() => {
-                  onClose();
-                  onOpenQRScanner();
-                }}
-                style={{ width: '100%', justifyContent: 'center', fontSize: '0.75rem', borderColor: 'rgba(99,102,241,0.25)', color: '#818cf8' }}
+                onClick={handleRunDiagnostics}
+                style={{ flex: 1, justifyContent: 'center', fontSize: '0.72rem', borderColor: 'rgba(245,158,11,0.30)', color: '#fbbf24', background: 'rgba(245,158,11,0.08)' }}
               >
-                <Camera className="w-3.5 h-3.5" />
-                مسح QR الربط المطبوع على شاشة الكمبيوتر 📷
+                <Stethoscope className="w-3.5 h-3.5 text-amber-400" />
+                تشخيص ذكي للشبكة 🩺
               </button>
-            )}
+            </div>
           </div>
 
           {/* Status Alert Banner */}
@@ -147,6 +170,92 @@ export const WifiSyncModal: React.FC<Props> = ({ isOpen, onClose, onOpenQRScanne
               {status.type === 'success' && <CheckCircle2 className="w-4 h-4" />}
               {status.type === 'error' && <AlertTriangle className="w-4 h-4" />}
               <span>{status.msg}</span>
+            </div>
+          )}
+
+          {/* Smart Diagnostics Panel */}
+          {showDiagnostics && (
+            <div style={{
+              background: 'rgba(15, 23, 42, 0.90)',
+              border: '1.5px solid rgba(245, 158, 11, 0.40)',
+              borderRadius: '1rem',
+              padding: '1rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.75rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#fbbf24', fontWeight: 900, fontSize: '0.85rem' }}>
+                  <Stethoscope className="w-4 h-4" />
+                  <span>لوحة التشخيص الذكي لاتصال الشبكة 🩺</span>
+                </div>
+                {isDiagnosing && <RefreshCw className="w-4 h-4 text-amber-400 animate-spin" />}
+              </div>
+
+              {isDiagnosing ? (
+                <div style={{ textAlign: 'center', padding: '1rem', color: '#94a3b8', fontSize: '0.78rem', fontWeight: 700 }}>
+                  <RefreshCw className="w-6 h-6 text-amber-400 animate-spin mx-auto mb-2" />
+                  جاري تشغيل التشخيص الذكي وفحص المنافذ والبروتوكولات...
+                </div>
+              ) : diagnosticResult ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                  {/* Step Status Badges */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    {diagnosticResult.steps.map((step, idx) => (
+                      <div key={idx} style={{
+                        display: 'flex', alignItems: 'flex-start', gap: '0.5rem',
+                        padding: '0.5rem 0.75rem', borderRadius: '0.5rem',
+                        background: step.status === 'pass' ? 'rgba(16,185,129,0.08)' : step.status === 'warn' ? 'rgba(245,158,11,0.08)' : 'rgba(244,63,94,0.08)',
+                        border: `1px solid ${step.status === 'pass' ? 'rgba(16,185,129,0.2)' : step.status === 'warn' ? 'rgba(245,158,11,0.2)' : 'rgba(244,63,94,0.2)'}`,
+                      }}>
+                        {step.status === 'pass' && <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />}
+                        {step.status === 'warn' && <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />}
+                        {step.status === 'fail' && <ShieldAlert className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" />}
+                        <div>
+                          <div style={{ fontWeight: 800, fontSize: '0.75rem', color: step.status === 'pass' ? '#6ee7b7' : step.status === 'warn' ? '#fcd34d' : '#fda4af' }}>
+                            {step.title}
+                          </div>
+                          <div style={{ fontSize: '0.68rem', color: '#cbd5e1', marginTop: '1px', lineHeight: 1.4 }}>
+                            {step.detail}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Summary & Actionable Solution */}
+                  {diagnosticResult.suggestedSolution && (
+                    <div style={{
+                      background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.35)',
+                      borderRadius: '0.75rem', padding: '0.75rem', color: '#fef3c7', fontSize: '0.72rem', fontWeight: 700
+                    }}>
+                      <div style={{ color: '#fbbf24', fontWeight: 900, marginBottom: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <span>💡 الحل والعلاج المقترح من التشخيص الذكي:</span>
+                      </div>
+                      <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5, color: '#fde68a' }}>
+                        {diagnosticResult.suggestedSolution}
+                      </div>
+
+                      {/* Direct HTTP Link Button if HTTPS issue detected */}
+                      {diagnosticResult.isHttps && diagnosticResult.cleanIp && (
+                        <a
+                          href={`http://${diagnosticResult.cleanIp}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+                            marginTop: '0.6rem', padding: '0.4rem 0.8rem', borderRadius: '0.5rem',
+                            background: '#f59e0b', color: '#000', fontWeight: 900, textDecoration: 'none', fontSize: '0.72rem'
+                          }}
+                        >
+                          <Wifi className="w-3.5 h-3.5" />
+                          <span>فتح الرابط المباشر السريع الخالي من الحظر (http://{diagnosticResult.cleanIp}) 🚀</span>
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : null}
             </div>
           )}
 
