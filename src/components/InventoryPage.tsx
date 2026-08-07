@@ -2,11 +2,13 @@ import React, { useState, useMemo, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, importFireSaleJSON, exportFireSaleJSON, generateId } from '../db';
 import { syncProductToCloud, deleteProductFromCloud } from '../firebaseSync';
+import { sendItemToPcSalesScreen } from '../wifiSync';
+import { showToast } from './Toast';
 import { Product } from '../types';
 import {
   Package, Search, Plus, Upload, Download, FileJson,
   AlertTriangle, Layers, Tag, CheckCircle2, Trash2, Edit3,
-  Camera, X, ChevronDown, BarChart2, Loader2
+  Camera, X, ChevronDown, BarChart2, Loader2, ShoppingCart
 } from 'lucide-react';
 
 interface InventoryPageProps {
@@ -300,7 +302,27 @@ export const InventoryPage: React.FC<InventoryPageProps> = ({ onOpenQRScanner })
                       </span>
                     </td>
                     <td style={{ textAlign: 'left' }}>
-                      <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'flex-start' }}>
+                      <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'flex-start', alignItems: 'center' }}>
+                        <button
+                          onClick={async () => {
+                            const res = await sendItemToPcSalesScreen(p, 1);
+                            if (res.success) {
+                              showToast('تم إرسال الصنف للكمبيوتر 💻', `${p.name} (1 قطعة)`, 'success');
+                            } else {
+                              showToast('تعذر الإرسال للكمبيوتر ⚠️', res.message, 'error');
+                            }
+                          }}
+                          title="إرسال الصنف لشاشة مبيعات كمبيوتر المحل"
+                          style={{
+                            padding: '0.3rem 0.55rem', borderRadius: '0.5rem',
+                            background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.30)',
+                            color: '#6ee7b7', fontWeight: 800, fontSize: '0.68rem', cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', gap: '0.25rem'
+                          }}
+                        >
+                          <ShoppingCart className="w-3 h-3" />
+                          إضافة للفاتورة 🛒
+                        </button>
                         <button
                           onClick={() => { setEditingProd(p); setForm(p); setIsAddOpen(true); }}
                           title="تعديل"
