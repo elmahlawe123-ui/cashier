@@ -123,19 +123,25 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, onTabChange, onOpenQR
 
             <button
               onClick={onOpenQRScanner}
-              className="btn btn-ghost"
               style={{
-                padding: '0.35rem 0.6rem',
-                borderColor: 'rgba(99,102,241,0.30)',
-                color: '#818cf8',
-                fontSize: '0.7rem',
-                borderRadius: '0.6rem',
+                padding: '0.45rem 0.85rem',
+                background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                color: '#ffffff',
+                border: '1px solid rgba(255,255,255,0.20)',
+                fontSize: '0.78rem',
+                fontWeight: 900,
+                borderRadius: '0.75rem',
                 flexShrink: 0,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                boxShadow: '0 4px 15px rgba(99,102,241,0.40)',
+                cursor: 'pointer'
               }}
-              title="فتح كاميرا الـ QR"
+              title="فتح كاميرا الـ QR والباركود"
             >
-              <Camera className="w-4 h-4 animate-pulse" />
-              <span className="hidden md:inline">مسح QR</span>
+              <Camera className="w-4 h-4 text-white animate-pulse" />
+              <span style={{ whiteSpace: 'nowrap' }}>فتح الكاميرا 📷</span>
             </button>
           </div>
 
