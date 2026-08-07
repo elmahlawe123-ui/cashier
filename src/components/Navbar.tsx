@@ -32,13 +32,13 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, onTabChange, onOpenQR
                 <span style={{ fontWeight: 900, fontSize: '0.9rem', color: '#f1f5f9', lineHeight: 1.1, whiteSpace: 'nowrap' }}>
                   الكاشير
                 </span>
-                <span className="badge badge-indigo hidden md:inline-flex" style={{ fontSize: '0.6rem', padding: '0.1rem 0.4rem' }}>
-                  <Zap className="w-2.5 h-2.5" />
-                  FireSale POS
+                <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] px-1.5 py-0.5 rounded-md font-extrabold flex items-center gap-1">
+                  <span>v1.2.5</span>
+                  <span>⚡</span>
                 </span>
               </div>
               <p className="hidden sm:block" style={{ fontSize: '0.6rem', color: '#64748b', lineHeight: 1, marginTop: '2px', whiteSpace: 'nowrap' }}>
-                تابع لنظام POS الأوفلاين
+                مزامنة Wi-Fi المحدثة والمستقرة 📶
               </p>
             </div>
           </div>
