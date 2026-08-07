@@ -119,6 +119,7 @@ export async function sendInvoiceToPcWifi(tx: Transaction, targetIp?: string): P
 
 export async function sendItemToPcSalesScreen(product: any, quantity: number = 1, targetIp?: string): Promise<{ success: boolean; message: string }> {
   const cleanIp = (targetIp || getSavedPcIp()).trim();
+  const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   let success = false;
 
   // 1. Try Local Wi-Fi HTTP Server
@@ -130,7 +131,7 @@ export async function sendItemToPcSalesScreen(product: any, quantity: number = 1
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ product, quantity }),
+        body: JSON.stringify({ product, quantity, requestId }),
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
@@ -146,6 +147,7 @@ export async function sendItemToPcSalesScreen(product: any, quantity: number = 1
     const fields = {
       product: { stringValue: JSON.stringify(product) },
       quantity: { integerValue: String(quantity) },
+      requestId: { stringValue: requestId },
       createdAt: { stringValue: new Date().toISOString() }
     };
     const cloudRes = await fetch(`https://firestore.googleapis.com/v1/projects/al-rawi-6a998/databases/(default)/documents/pending_wifi_items/${docId}`, {
