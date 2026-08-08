@@ -33,8 +33,8 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, onTabChange, onOpenQR
                   الكاشير
                 </span>
                 <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] px-1.5 py-0.5 rounded-md font-extrabold flex items-center gap-1">
-                  <span>v1.2.5</span>
-                  <span>⚡</span>
+                  <span>v2.0.0</span>
+                  <span>⚡ Pro</span>
                 </span>
               </div>
               <p className="hidden sm:block" style={{ fontSize: '0.6rem', color: '#64748b', lineHeight: 1, marginTop: '2px', whiteSpace: 'nowrap' }}>
