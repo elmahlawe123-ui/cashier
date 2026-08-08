@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
 import { InventoryPage } from './components/InventoryPage';
 import { InvoicesPage } from './components/InvoicesPage';
+import { AuditPage } from './components/AuditPage';
 import { PinAuth } from './components/PinAuth';
 import { WifiSyncModal } from './components/WifiSyncModal';
 import { ToastContainer } from './components/Toast';
@@ -10,7 +11,7 @@ import { Camera } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [authenticated, setAuthenticated] = useState(false);
-  const [activeTab, setActiveTab] = useState<'inventory' | 'invoices'>('invoices');
+  const [activeTab, setActiveTab] = useState<'inventory' | 'invoices' | 'audit'>('invoices');
   const [cameraTrigger, setCameraTrigger] = useState(0);
   const [isWifiModalOpen, setIsWifiModalOpen] = useState(false);
 
@@ -24,8 +25,13 @@ export const App: React.FC = () => {
   }
 
   const handleNavbarCamera = () => {
-    setActiveTab('invoices');
-    setCameraTrigger(prev => prev + 1);
+    if (activeTab === 'audit') {
+      // In audit tab, camera opens inside AuditPage or handleNavbarCamera
+      setCameraTrigger(prev => prev + 1);
+    } else {
+      setActiveTab('invoices');
+      setCameraTrigger(prev => prev + 1);
+    }
   };
 
   return (
@@ -45,6 +51,8 @@ export const App: React.FC = () => {
       <main style={{ maxWidth: '1400px', width: '100%', margin: '0 auto', padding: '1rem 0.5rem 5rem' }}>
         {activeTab === 'inventory' ? (
           <InventoryPage onOpenQRScanner={handleNavbarCamera} />
+        ) : activeTab === 'audit' ? (
+          <AuditPage onOpenQRScanner={handleNavbarCamera} />
         ) : (
           <InvoicesPage cameraTrigger={cameraTrigger} />
         )}

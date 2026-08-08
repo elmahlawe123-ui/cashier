@@ -1,9 +1,9 @@
 import React from 'react';
-import { Package, Receipt, Store, Camera, Zap, Wifi } from 'lucide-react';
+import { Package, Receipt, Store, Camera, Zap, Wifi, ClipboardCheck } from 'lucide-react';
 
 interface NavbarProps {
-  activeTab: 'inventory' | 'invoices';
-  onTabChange: (tab: 'inventory' | 'invoices') => void;
+  activeTab: 'inventory' | 'invoices' | 'audit';
+  onTabChange: (tab: 'inventory' | 'invoices' | 'audit') => void;
   onOpenQRScanner: () => void;
   onOpenWifiSync?: () => void;
 }
@@ -33,12 +33,12 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, onTabChange, onOpenQR
                   الكاشير
                 </span>
                 <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] px-1.5 py-0.5 rounded-md font-extrabold flex items-center gap-1">
-                  <span>v2.0.0</span>
+                  <span>v2.1.0</span>
                   <span>⚡ Pro</span>
                 </span>
               </div>
               <p className="hidden sm:block" style={{ fontSize: '0.6rem', color: '#64748b', lineHeight: 1, marginTop: '2px', whiteSpace: 'nowrap' }}>
-                مزامنة Wi-Fi المحدثة والمستقرة 📶
+                مزامنة الجرد والبيع اللحظية 📶
               </p>
             </div>
           </div>
@@ -56,6 +56,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, onTabChange, onOpenQR
             {([
               { id: 'invoices', label: 'الفواتير', labelFull: 'الفواتير (POS)', icon: <Receipt className="w-3.5 h-3.5" /> },
               { id: 'inventory', label: 'المخزن', labelFull: 'المخزن (JSON)', icon: <Package className="w-3.5 h-3.5" /> },
+              { id: 'audit', label: 'الجرد 📋', labelFull: 'الجرد الميداني 📋', icon: <ClipboardCheck className="w-3.5 h-3.5" /> },
             ] as const).map((tab) => (
               <button
                 key={tab.id}

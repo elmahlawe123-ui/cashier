@@ -167,6 +167,59 @@ export async function sendItemToPcSalesScreen(product: any, quantity: number = 1
   return { success: false, message: 'تعذر الاتصال ببرنامج الكمبيوتر. يرجى التأكد من تشغيل خادم الربط.' };
 }
 
+/**
+ * 📋 إرسال قراءات الجرد الفعلي للصنف إلى برنامج الكمبيوتر المباشر
+ */
+export async function sendAuditCountToPc(product: any, countedQty: number, targetIp?: string): Promise<{ success: boolean; message: string }> {
+  const cleanIp = (targetIp || getSavedPcIp()).trim();
+  const requestId = `audit_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  let success = false;
+
+  // 1. Try Local Wi-Fi HTTP Server
+  if (cleanIp) {
+    const url = formatPcUrl(cleanIp, '/api/wifi/audit-count');
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product, countedQty, requestId }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        success = true;
+      }
+    } catch {}
+  }
+
+  // 2. Dual Cloud Bridge (Firestore REST API)
+  try {
+    const docId = `audit_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const fields = {
+      product: { stringValue: JSON.stringify(product) },
+      countedQty: { integerValue: String(countedQty) },
+      requestId: { stringValue: requestId },
+      createdAt: { stringValue: new Date().toISOString() }
+    };
+    const cloudRes = await fetch(`https://firestore.googleapis.com/v1/projects/al-rawi-6a998/databases/(default)/documents/inventory_audit_sessions/${docId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields })
+    });
+    if (cloudRes.ok) {
+      success = true;
+    }
+  } catch {}
+
+  if (success) {
+    return { success: true, message: `تم إرسال جرد (${product.name}) إلى الكمبيوتر!` };
+  }
+
+  return { success: false, message: 'تعذر الإرسال للكمبيوتر. سيتم حفظ الجرد محلياً على الموبايل.' };
+}
+
 export interface WifiDiagnosticResult {
   isHttps: boolean;
   cleanIp: string;
